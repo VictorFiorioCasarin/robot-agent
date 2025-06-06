@@ -7,7 +7,7 @@ prompt: |
   - action: verbs representing an action the robot should perform (for example: bring, take, go)
   - object: manipulable items or entities (for example: cup, box, newspaper)
   - location: specific places or furniture inside rooms (for example: table, closet, shelf)
-  - room: general regions or rooms in the house (for example: kitchen, bedroom, bathroom)
+  - room: general regions or rooms in the house (for example: bedroom, kitchen, living room, dining room, bathroom, hall, laundry room)
   - direction: spatial cues (for example: near, next to, on top of, behind)
   - other: anything else (for example: prepositions, articles, connectors)
 

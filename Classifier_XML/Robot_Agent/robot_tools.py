@@ -11,6 +11,7 @@ with open('Classifier_XML/Robot_Agent/Prompts/classifier_prompt.yaml', 'r') as f
     CLASSIFIER_PROMPT = yaml.safe_load(file)['prompt']
 
 known_objects = ["cup", "mug", "bowl", "dish", "spoon", "fork", "knife", "napkin", "tray", "basket", "trash bag", "book", "CD", "DVD", "BluRay", "cereal box", "milk carton", "bag", "coat", "apple", "paper", "teabag", "pen", "remote control", "chocolate egg", "refrigerator bottle", "newspaper", "umbrella"]
+known_rooms = ["bedroom", "kitchen", "living room", "dining room", "bathroom", "hall", "laundry room"]
 
 @tool
 def classify_sentence_semantic(sentence: str) -> str:
@@ -92,9 +93,9 @@ def rewrite_sentence(input_str: str) -> str:
 @tool
 def navigate_to(input_str: str) -> str:
     """
-    Navigates the robot to a specific location in the house (for example: kitchen, living room, bedroom).
+    Navigates the robot to a specific room in the house (for example: kitchen, living room, bedroom).
     Returns a success or failure message.
-    The input should be a JSON string with a 'location' key, for example: '{"location": "kitchen"}'.
+    The input should be a JSON string with a 'room' key, for example: '{"room": "kitchen"}'.
     """
     try:
         # Tenta remover as aspas simples externas se existirem
@@ -102,16 +103,24 @@ def navigate_to(input_str: str) -> str:
             input_str = input_str[1:-1]
         
         parsed_input = json.loads(input_str)
-        location = parsed_input.get("location")
-        if not location:
-            return "Error: 'location' key not found in input JSON for navigate_to."
+        room = parsed_input.get("room")
+        if not room:
+            return "Error: 'room' key not found in input JSON for navigate_to."
         
-        print(f"[ROBOT ACTION] Navigating to: {location}")
+        print(f"[ROBOT ACTION] Navigating to room: {room}")
         # Simula a chamada à API de navegação do robô
-        if location.lower() in ["kitchen", "living room", "bedroom", "bathroom", "hall", "table", "closet", "shelf"]:
-            return f"Robot arrived at {location}."
+        if room.lower() in known_rooms:
+            return f"Robot arrived at {room}."
         else:
-            return f"Cannot navigate to '{location}'. Unknown or inaccessible location."
+            # adiciona um novo cômodo a lista de cômodos conhecidos
+            known_rooms.append(room)
+            print(f"Room '{room}' added to known_rooms list.")
+            return f"Robot arrived at {room}."
+        
+        '''
+        else:
+            return f"Cannot navigate to '{room}'. Unknown or inaccessible room."
+        '''
     except json.JSONDecodeError:
         return f"Error: Invalid JSON input for navigate_to. Ensure it uses double quotes: {input_str}"
     except Exception as e:

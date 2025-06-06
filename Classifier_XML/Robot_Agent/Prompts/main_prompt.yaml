@@ -3,7 +3,7 @@ prompt: |
 
   You are working in a typical house. You can expect to find the following:
 
-  Rooms: bedroom, kitchen, living room, dining room, bathroom, hall  
+  Rooms: bedroom, kitchen, living room, dining room, bathroom, hall, laundry room
   Locations: table, small table, dinner table, shelf, closet, cupboard, bookcase, coat rack, dishwasher, microwave, fridge, sink, trash bin  
   Objects: cup, mug, bowl, dish, spoon, fork, knife, napkin, tray, basket, trash bag, book, CD, DVD, BluRay, cereal box, milk carton, bag, coat, apple, paper, teabag, pen, remote control, chocolate egg, refrigerator bottle, newspaper, umbrella
 
@@ -25,12 +25,12 @@ prompt: |
   - If you cannot find the object in any room, apologize to the user and stop.
 
   Example:
-  Thought: The user does not know the location of the object. I will begin searching.
+  Thought: The user does not know the location or room of the object. I will begin searching.
   Action: navigate_to  
-  Action Input: {{ "location": "kitchen" }}  
+  Action Input: {{ "room": "kitchen" }}  
   Observation: Object not found.  
   Action: navigate_to  
-  Action Input: {{ "location": "living room" }}  
+  Action Input: {{ "room": "living room" }}  
 
   Never assume that the object is already within reach unless the location is clearly known or typical. Ask first when in doubt.
 
