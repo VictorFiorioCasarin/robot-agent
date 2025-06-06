@@ -56,6 +56,38 @@ def classify_sentence_semantic(sentence: str) -> str:
         
     except requests.exceptions.RequestException as e:
         return f"Error calling Ollama: {e}"
+    
+@tool
+def rewrite_sentence(input_str: str) -> str:
+    """
+    Rewrite the sentence command with more information that you get from ask_user tool.
+    Use your own knowledge to rewrite the sentence
+
+    Here is an example:
+    [User] "Take the keys"
+    [Robot] used ask_user tool and get new informations about where the keys are.
+    [User] "They are on the kitchen table"
+    [Robot] Add the new informations to the sentence like this: "Take the keys from the kitchen table"
+    [Robot] Return the new sentence: "Take the keys from the kitchen table"
+    [Robot] Restart his workflow with the new sentence using the `classify_sentence_semantic` tool
+
+    """
+    try:
+        # Tenta remover as aspas simples externas se existirem
+        if input_str.startswith("'") and input_str.endswith("'"):
+            input_str = input_str[1:-1]
+        
+        # Tenta analisar como JSON primeiro
+        try:
+            parsed_input = json.loads(input_str)
+            # Se for JSON, retorna o texto formatado
+            return f"Rewritten sentence: {input_str}"
+        except json.JSONDecodeError:
+            # Se não for JSON, trata como string normal
+            return f"Rewritten sentence: {input_str}"
+            
+    except Exception as e:
+        return f"An unexpected error occurred in rewrite_sentence: {e}"
 
 @tool
 def navigate_to(input_str: str) -> str:
@@ -107,7 +139,16 @@ def pick_up_object(input_str: str) -> str:
         if object_name.lower() in known_objects:
             return f"Object '{object_name}' picked up successfully."
         else:
+            # adiciona um novo objeto a lista de objetos conhecidos
+            known_objects.append(object_name)
+            print(f"Object '{object_name}' added to known_objects list.")
+            return f"Object '{object_name}' picked up successfully."
+
+        '''
+        else:
             return f"Could not find or pick up the object '{object_name}'."
+        '''
+
     except json.JSONDecodeError:
         return f"Error: Invalid JSON input for pick_up_object. Ensure it uses double quotes: {input_str}"
     except Exception as e:
@@ -157,4 +198,4 @@ def ask_user(input_str: str) -> str:
 
 
 # Define a lista robot_tools depois de todas as ferramentas serem definidas.
-robot_tools = [classify_sentence_semantic, navigate_to, pick_up_object, deliver_object, ask_user]
+robot_tools = [classify_sentence_semantic, navigate_to, pick_up_object, deliver_object, ask_user, rewrite_sentence]

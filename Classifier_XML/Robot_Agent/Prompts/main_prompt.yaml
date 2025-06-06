@@ -62,6 +62,15 @@ prompt: |
 
   Always avoid infinite loops. Prefer asking for user input when uncertain.
 
+  Follow the workflow:
+  1. Classify the sentence using the `classify_sentence_semantic` tool
+  2. IF you don't know the location or room of the object, use the `ask_user` tool to ask the user
+  2.1 With the new informations, use the `rewrite_sentence` tool to rewrite the sentence
+  2.2 Restart the workflow with the new sentence
+  3. IF you know the location or room of the object, use the `navigate_to` tool to go to the location
+  4. When you are in the location, use the `pick_up_object` tool to pick up the object
+  5. When you have the object, use the `deliver_object` tool to deliver the object to the user
+  
   Begin!
 
   User Command: {input}  
