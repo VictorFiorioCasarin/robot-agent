@@ -42,14 +42,14 @@ def determine_input_type(user_input: str) -> str:
                 pass
         
         # Se não conseguir parsear como JSON, verifica palavras-chave
-        if any(word in user_input.lower() for word in ['pegue', 'vá', 'traga', 'leve', 'mova']):
+        if any(word in user_input.lower() for word in ['pegue', 'vá', 'traga', 'leve', 'mova', 'bring', 'take', 'go', 'get']):
             return 'command'
         return 'conversation'
             
     except Exception as e:
         print(f"Error in determine_input_type: {e}")
         # Se houver erro, verifica palavras-chave
-        if any(word in user_input.lower() for word in ['pegue', 'vá', 'traga', 'leve', 'mova']):
+        if any(word in user_input.lower() for word in ['pegue', 'vá', 'traga', 'leve', 'mova', 'bring', 'take', 'go', 'get']):
             return 'command'
         return 'conversation'
 
@@ -66,7 +66,14 @@ def route_input(user_input: str) -> str:
         return response['output']
     else:
         # Usar o novo agente de conversação
-        return process_conversation(user_input)
+        response = process_conversation(user_input)
+        
+        # Se a resposta indica que é um comando, processa como comando
+        if response == "__COMMAND_MODE__":
+            command_response = command_agent.invoke({"input": user_input})
+            return command_response['output']
+            
+        return response
 
 # Loop principal de interação
 if __name__ == "__main__":
