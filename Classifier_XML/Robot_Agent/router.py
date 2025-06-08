@@ -21,8 +21,8 @@ router_prompt_template = PromptTemplate.from_template(router_prompt)
 # Função para determinar o tipo de input
 def determine_input_type(user_input: str) -> str:
     """
-    Determina se o input do usuário é um comando ou uma conversa.
-    Retorna 'command' ou 'conversation'.
+    Determine if the user input is a command or a conversation.
+    Return 'command' or 'conversation'.
     """
     try:
         # Usar a LLM para interpretar o input
@@ -41,22 +41,32 @@ def determine_input_type(user_input: str) -> str:
             except json.JSONDecodeError:
                 pass
         
-        # Se não conseguir parsear como JSON, verifica palavras-chave
-        if any(word in user_input.lower() for word in ['pegue', 'vá', 'traga', 'leve', 'mova', 'bring', 'take', 'go', 'get']):
+        # Se não conseguir parsear como JSON, verifica o contexto da frase
+        input_lower = user_input.lower()
+        
+        # Palavras que indicam uma solicitação de informação ou ajuda
+        info_words = ['help', 'explain', 'what', 'how', 'why', 'when', 'where', 'can you', 'could you', 'would you']
+        if any(word in input_lower for word in info_words):
+            return 'conversation'
+            
+        # Palavras que indicam um comando físico
+        command_words = ['pick up', 'go to', 'bring', 'take', 'move', 'get', 'deliver']
+        if any(word in input_lower for word in command_words):
+            # Verifica se é um comando físico real ou uma metáfora/conversação
+            if any(word in input_lower for word in ['help me', 'explain', 'understand', 'learn', 'teach']):
+                return 'conversation'
             return 'command'
+            
         return 'conversation'
             
     except Exception as e:
-        print(f"Error in determine_input_type: {e}")
-        # Se houver erro, verifica palavras-chave
-        if any(word in user_input.lower() for word in ['pegue', 'vá', 'traga', 'leve', 'mova', 'bring', 'take', 'go', 'get']):
-            return 'command'
+        # Se houver erro, assume que é uma conversação
         return 'conversation'
 
 # Função principal do router
 def route_input(user_input: str) -> str:
     """
-    Roteia o input do usuário para o agente apropriado.
+    Route the input to the appropriate agent.
     """
     input_type = determine_input_type(user_input)
     
@@ -68,8 +78,11 @@ def route_input(user_input: str) -> str:
         # Usar o novo agente de conversação
         response = process_conversation(user_input)
         
-        # Se a resposta indica que é um comando, processa como comando
+        # Se a resposta indica que é um comando, verifica novamente o contexto
         if response == "__COMMAND_MODE__":
+            # Verifica se é realmente um comando físico ou uma metáfora/conversação
+            if any(word in user_input.lower() for word in ['help me', 'explain', 'understand', 'learn', 'teach']):
+                return "I apologize, but I am a household assistant robot. I can help you with physical tasks like picking up objects, navigating rooms, and delivering items. I cannot help with academic subjects or explanations."
             command_response = command_agent.invoke({"input": user_input})
             return command_response['output']
             
