@@ -2,7 +2,7 @@ from langchain_ollama import ChatOllama
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from robot_tools import robot_tools
+from src.robot_agent.robot_tools import robot_tools
 import json
 import yaml
 
@@ -10,7 +10,7 @@ import yaml
 main_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
 
 # 2. Carregar o Prompt do Agente a partir do arquivo YAML
-with open('Classifier_XML/Robot_Agent/Prompts/main_prompt.yaml', 'r') as file:
+with open('Prompts/main_prompt.yaml', 'r') as file:
     agent_prompt = yaml.safe_load(file)['prompt']
 
 # Definir o Prompt do Agente (ReAct/ZeroShotAgent)

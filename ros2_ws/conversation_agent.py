@@ -6,7 +6,7 @@ import yaml
 conversation_llm = ChatOllama(model="gemma3:4b", temperature=0.7)
 
 # Carregar o prompt da conversação
-with open('Classifier_XML/Robot_Agent/Prompts/conversation_prompt.yaml', 'r') as file:
+with open('Prompts/conversation_prompt.yaml', 'r') as file:
     conversation_prompt = yaml.safe_load(file)['prompt']
 
 # Criar o prompt template

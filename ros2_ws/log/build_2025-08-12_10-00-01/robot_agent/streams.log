@@ -1,0 +1,23 @@
+[0.356s] Invoking command in '/home/victor/TCC/robot-agent/ros2_ws/src': PYTHONPATH=/home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/robot_agent build --build-base /home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/build install --record /home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/install.log --single-version-externally-managed install_data
+[0.493s] running egg_info
+[0.494s] writing ../build/robot_agent/robot_agent.egg-info/PKG-INFO
+[0.494s] writing dependency_links to ../build/robot_agent/robot_agent.egg-info/dependency_links.txt
+[0.494s] writing entry points to ../build/robot_agent/robot_agent.egg-info/entry_points.txt
+[0.494s] writing requirements to ../build/robot_agent/robot_agent.egg-info/requires.txt
+[0.494s] writing top-level names to ../build/robot_agent/robot_agent.egg-info/top_level.txt
+[0.494s] reading manifest file '../build/robot_agent/robot_agent.egg-info/SOURCES.txt'
+[0.495s] writing manifest file '../build/robot_agent/robot_agent.egg-info/SOURCES.txt'
+[0.495s] running build
+[0.495s] running install
+[0.495s] running install_data
+[0.495s] copying resource/robot_agent -> /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/share/ament_index/resource_index/packages
+[0.495s] copying package.xml -> /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/share/robot_agent
+[0.495s] running install_egg_info
+[0.496s] Copying ../build/robot_agent/robot_agent.egg-info to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/python3.10/site-packages/robot_agent-0.0.0-py3.10.egg-info
+[0.497s] running install_scripts
+[0.508s] Installing robot_publisher script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+[0.509s] Installing room_subscriber script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+[0.509s] Installing simple_robot_publisher script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+[0.509s] Installing test_publisher script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+[0.509s] writing list of installed files to '/home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/install.log'
+[0.522s] Invoked command in '/home/victor/TCC/robot-agent/ros2_ws/src' returned '0': PYTHONPATH=/home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/robot_agent build --build-base /home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/build install --record /home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/install.log --single-version-externally-managed install_data

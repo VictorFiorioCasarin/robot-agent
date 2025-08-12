@@ -12,7 +12,7 @@ from conversation_agent import process_conversation
 router_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
 
 # Carregar o prompt do router
-with open('Classifier_XML/Robot_Agent/Prompts/router_prompt.yaml', 'r') as file:
+with open('Prompts/router_prompt.yaml', 'r') as file:
     router_prompt = yaml.safe_load(file)['prompt']
 
 # Criar o prompt template

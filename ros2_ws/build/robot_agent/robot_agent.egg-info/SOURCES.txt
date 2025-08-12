@@ -1,0 +1,11 @@
+package.xml
+setup.cfg
+setup.py
+../build/robot_agent/robot_agent.egg-info/PKG-INFO
+../build/robot_agent/robot_agent.egg-info/SOURCES.txt
+../build/robot_agent/robot_agent.egg-info/dependency_links.txt
+../build/robot_agent/robot_agent.egg-info/entry_points.txt
+../build/robot_agent/robot_agent.egg-info/requires.txt
+../build/robot_agent/robot_agent.egg-info/top_level.txt
+../build/robot_agent/robot_agent.egg-info/zip-safe
+resource/robot_agent

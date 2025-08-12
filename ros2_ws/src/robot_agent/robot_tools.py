@@ -1,3 +1,8 @@
+# imports para ROS2
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
 import requests
 from langchain.tools import tool
 import json
@@ -6,9 +11,38 @@ import yaml
 # Importando o parser JSON que o LangChain usa internamente para ser mais robusto
 from langchain.output_parsers import json as json_parser_lc # Importa o módulo json do langchain.output_parsers
 
+# Classe para o publisher ROS2
+class RobotPublisher(Node):
+    def __init__(self):
+        super().__init__('robot_publisher')
+        self.room_publisher = self.create_publisher(String, 'room', 10)
+        self.get_logger().info('Robot Publisher initialized')
+
+    def publish_room(self, room_name):
+        msg = String()
+        msg.data = room_name
+        self.room_publisher.publish(msg)
+        self.get_logger().info(f'Published room: {room_name}')
+
+# Variável global para o nó ROS2
+robot_publisher_node = None
+
+def init_ros_node():
+    """Inicializa o nó ROS2 se ainda não foi inicializado"""
+    global robot_publisher_node
+    if robot_publisher_node is None:
+        if not rclpy.ok():
+            rclpy.init()
+        robot_publisher_node = RobotPublisher()
+    return robot_publisher_node
+
 # Carregar o prompt do classificador a partir do arquivo YAML
-with open('Classifier_XML/Robot_Agent/Prompts/classifier_prompt.yaml', 'r') as file:
-    CLASSIFIER_PROMPT = yaml.safe_load(file)['prompt']
+try:
+    with open('Prompts/classifier_prompt.yaml', 'r') as file:
+        CLASSIFIER_PROMPT = yaml.safe_load(file)['prompt']
+except (FileNotFoundError, KeyError) as e:
+    print(f"Warning: classifier_prompt.yaml not found ({e}), using default prompt")
+    CLASSIFIER_PROMPT = "Classify the following sentence into semantic categories (action, object, location, room, direction, other). Return as Python list of tuples."
 
 known_objects = ["cup", "mug", "bowl", "dish", "spoon", "fork", "knife", "napkin", "tray", "basket", "trash bag", "book", "CD", "DVD", "BluRay", "cereal box", "milk carton", "bag", "coat", "apple", "paper", "teabag", "pen", "remote control", "chocolate egg", "refrigerator bottle", "newspaper", "umbrella"]
 known_rooms = ["bedroom", "kitchen", "living room", "dining room", "bathroom", "hall", "laundry room"]
@@ -93,11 +127,14 @@ def rewrite_sentence(input_str: str) -> str:
 @tool
 def navigate_to(input_str: str) -> str:
     """
-    Navigates the robot to a specific room in the house (for example: kitchen, living room, bedroom).
+    Navigates the robot to a specific room in the house (for example: kitchen, living room, bedroom) and publish to ROS2 topic.
     Returns a success or failure message.
     The input should be a JSON string with a 'room' key, for example: '{"room": "kitchen"}'.
     """
     try:
+        # Inicializa o nó ROS2 se necessário
+        publisher = init_ros_node()
+
         # Tenta remover as aspas simples externas se existirem
         if input_str.startswith("'") and input_str.endswith("'"):
             input_str = input_str[1:-1]
@@ -108,6 +145,10 @@ def navigate_to(input_str: str) -> str:
             return "Error: 'room' key not found in input JSON for navigate_to."
         
         print(f"[ROBOT ACTION] Navigating to room: {room}")
+
+        # Publica no tópico ROS2
+        publisher.publish_room(room)
+        
         # Simula a chamada à API de navegação do robô
         if room.lower() in known_rooms:
             return f"Robot arrived at {room}."
@@ -204,6 +245,32 @@ def ask_user(input_str: str) -> str:
         return "__UNKNOWN_LOCATION__"
     return user_response
 
+# função main para testes (pode ser removida ao final)
+def main():
+    """Função principal para testes do publisher"""
+    print("Testing robot_tools with ROS2...")
+    
+    # Teste da navegação
+    test_rooms = [
+        '{"room": "kitchen"}',
+        '{"room": "living room"}', 
+        '{"room": "office"}'
+    ]
+    
+    for room_cmd in test_rooms:
+        result = navigate_to(room_cmd)
+        print(f"Command: {room_cmd} -> Result: {result}")
+        time.sleep(1)
+    
+    # Cleanup
+    global robot_publisher_node
+    if robot_publisher_node:
+        robot_publisher_node.destroy_node()
+    if rclpy.ok():
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 
 
 # Define a lista robot_tools depois de todas as ferramentas serem definidas.

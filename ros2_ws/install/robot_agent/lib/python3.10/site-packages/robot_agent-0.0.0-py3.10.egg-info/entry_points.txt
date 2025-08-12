@@ -1,0 +1,6 @@
+[console_scripts]
+robot_publisher = robot_agent.robot_tools:main
+room_subscriber = robot_agent.room_subscriber:main
+simple_robot_publisher = robot_agent.simple_robot_publisher:main
+test_publisher = robot_agent.test_publisher:main
+

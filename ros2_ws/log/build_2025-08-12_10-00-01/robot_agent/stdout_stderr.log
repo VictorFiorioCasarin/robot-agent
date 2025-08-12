@@ -1,0 +1,21 @@
+running egg_info
+writing ../build/robot_agent/robot_agent.egg-info/PKG-INFO
+writing dependency_links to ../build/robot_agent/robot_agent.egg-info/dependency_links.txt
+writing entry points to ../build/robot_agent/robot_agent.egg-info/entry_points.txt
+writing requirements to ../build/robot_agent/robot_agent.egg-info/requires.txt
+writing top-level names to ../build/robot_agent/robot_agent.egg-info/top_level.txt
+reading manifest file '../build/robot_agent/robot_agent.egg-info/SOURCES.txt'
+writing manifest file '../build/robot_agent/robot_agent.egg-info/SOURCES.txt'
+running build
+running install
+running install_data
+copying resource/robot_agent -> /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/share/ament_index/resource_index/packages
+copying package.xml -> /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/share/robot_agent
+running install_egg_info
+Copying ../build/robot_agent/robot_agent.egg-info to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/python3.10/site-packages/robot_agent-0.0.0-py3.10.egg-info
+running install_scripts
+Installing robot_publisher script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+Installing room_subscriber script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+Installing simple_robot_publisher script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+Installing test_publisher script to /home/victor/TCC/robot-agent/ros2_ws/install/robot_agent/lib/py_pubsub
+writing list of installed files to '/home/victor/TCC/robot-agent/ros2_ws/build/robot_agent/install.log'
