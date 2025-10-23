@@ -2,6 +2,9 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 import yaml
 
+# Import do RAG pipeline
+from rag_pipeline import get_context, search_with_filter
+
 # Configurar a LLM para a conversação
 conversation_llm = ChatOllama(model="gemma3:4b", temperature=0.7)
 
@@ -58,19 +61,51 @@ def is_within_domain(user_input: str) -> bool:
         return True
     return True
 
+def get_rag_context(user_input: str) -> str:
+    """
+    Get relevant context from the knowledge base for the user's question.
+    """
+    try:
+        # Check if the question is about rules, competitions, or robotics
+        robotics_keywords = [
+            'rule', 'rules', 'regulation', 'competition', 'task', 'score', 'scoring',
+            'navigation', 'manipulation', 'robot', 'robotic', 'procedure', 'guideline',
+            'allowed', 'not allowed', 'safety', 'requirement', 'specification'
+        ]
+        
+        if any(keyword in user_input.lower() for keyword in robotics_keywords):
+            context = get_context(user_input, k=2)
+            if context and context != "Nenhum contexto relevante encontrado.":
+                return context
+        
+        return ""
+    except Exception as e:
+        print(f"Error getting RAG context: {e}")
+        return ""
+
 # Função para processar a conversa
 def process_conversation(user_input: str) -> str:
     """
     Process the user input in conversation.
     Return "__COMMAND_MODE__" if a command is detected, or the normal response otherwise.
+    Uses RAG context for robotics-related questions.
     """
     try:
         # First check if the topic is within domain
         if not is_within_domain(user_input):
             return "I apologize, but I am a household assistant robot and cannot provide information about topics outside my domain. I am designed to help with household tasks like picking up objects, navigating rooms, and delivering items."
+        
+        # Get RAG context if relevant
+        rag_context = get_rag_context(user_input)
+        
+        # Modify the prompt to include RAG context if available
+        if rag_context:
+            enhanced_input = f"Based on this context from my knowledge base:\n\n{rag_context}\n\nUser question: {user_input}"
+        else:
+            enhanced_input = user_input
             
         response = conversation_llm.invoke(
-            conversation_prompt_template.format(input=user_input)
+            conversation_prompt_template.format(input=enhanced_input)
         )
         
         # Verifica se a resposta indica que é um comando

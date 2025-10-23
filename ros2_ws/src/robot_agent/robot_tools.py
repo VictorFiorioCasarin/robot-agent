@@ -7,9 +7,16 @@ import requests
 from langchain.tools import tool
 import json
 import yaml
+import time
 
 # Importando o parser JSON que o LangChain usa internamente para ser mais robusto
 from langchain.output_parsers import json as json_parser_lc # Importa o módulo json do langchain.output_parsers
+
+# Import do RAG pipeline
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from rag_pipeline import get_context, search_with_filter
 
 # Classe para o publisher ROS2
 class RobotPublisher(Node):
@@ -232,7 +239,58 @@ def deliver_object(input_str: str) -> str:
     except Exception as e:
         return f"An unexpected error occurred in deliver_object: {e}"
 
-from langchain.tools import tool
+@tool
+def search_knowledge_base(query: str) -> str:
+    """
+    Searches the robot's knowledge base (rulebook and documentation) for information.
+    Use this tool to get information about:
+    - Competition rules and regulations
+    - Robot tasks and procedures
+    - Scoring systems
+    - Navigation guidelines
+    - Manipulation instructions
+    - General robotic capabilities
+    
+    Input should be a clear question or search term related to robotics, competition rules, or tasks.
+    Example queries: "navigation rules", "object manipulation", "competition scoring", "robot tasks"
+    """
+    try:
+        # Use o RAG pipeline para buscar informações
+        context = get_context(query, k=3)
+        
+        if context and context != "Nenhum contexto relevante encontrado.":
+            return f"Based on the knowledge base:\n\n{context}"
+        else:
+            return "No relevant information found in the knowledge base for this query."
+            
+    except Exception as e:
+        return f"Error searching knowledge base: {e}"
+
+@tool
+def search_rules_and_regulations(query: str) -> str:
+    """
+    Specifically searches for competition rules and regulations.
+    Use this tool when users ask about:
+    - What is allowed/not allowed in competitions
+    - Scoring rules
+    - Task specifications
+    - Safety regulations
+    - Competition procedures
+    
+    Input should be a question about rules or regulations.
+    Example: "manipulation rules", "navigation safety", "scoring system"
+    """
+    try:
+        # Use busca filtrada especificamente para o rulebook
+        context = search_with_filter(query, {"tipo": "rulebook"}, k=3)
+        
+        if context and context != "Nenhum contexto relevante encontrado.":
+            return f"According to the competition rules:\n\n{context}"
+        else:
+            return "No specific rules found for this query."
+            
+    except Exception as e:
+        return f"Error searching rules: {e}"
 
 @tool
 def ask_user(input_str: str) -> str:
@@ -274,4 +332,13 @@ if __name__ == '__main__':
 
 
 # Define a lista robot_tools depois de todas as ferramentas serem definidas.
-robot_tools = [classify_sentence_semantic, navigate_to, pick_up_object, deliver_object, ask_user, rewrite_sentence]
+robot_tools = [
+    classify_sentence_semantic, 
+    navigate_to, 
+    pick_up_object, 
+    deliver_object, 
+    ask_user, 
+    rewrite_sentence,
+    search_knowledge_base,
+    search_rules_and_regulations
+]

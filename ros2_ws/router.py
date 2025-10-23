@@ -8,6 +8,9 @@ import re
 from main_robot_agent import agent_executor as command_agent
 from conversation_agent import process_conversation
 
+# Importar RAG pipeline diretamente
+from rag_pipeline import get_context, search_with_filter
+
 # Configurar a LLM para o router
 router_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
 
@@ -17,6 +20,65 @@ with open('Prompts/router_prompt.yaml', 'r') as file:
 
 # Criar o prompt template
 router_prompt_template = PromptTemplate.from_template(router_prompt)
+
+# Prompt para respostas com contexto RAG
+rag_response_prompt = """You are a helpful household assistant robot with access to comprehensive robotics documentation.
+
+Based on the following context from my knowledge base, please answer the user's question in a helpful and informative way:
+
+Context:
+{context}
+
+User question: {question}
+
+Provide a clear, accurate answer based on the context. If the context doesn't fully answer the question, mention what information is available and offer to help with related topics.
+
+Robot response:"""
+
+rag_prompt_template = PromptTemplate.from_template(rag_response_prompt)
+
+def is_robotics_question(user_input: str) -> bool:
+    """
+    Detecta se a pergunta é sobre robótica/competição/regras
+    """
+    robotics_keywords = [
+        'robocup', 'robot', 'arena', 'competition', 'task', 'rule', 'regulation',
+        'navigation', 'manipulation', 'scoring', 'configuration', 'minimal', 
+        'maximum', 'specification', 'requirement', 'procedure', 'guideline',
+        'safety', 'allowed', 'not allowed', 'points', 'penalty', 'bonus',
+        'home', 'league', 'team', 'judge', 'referee', 'technical'
+    ]
+    
+    user_lower = user_input.lower()
+    return any(keyword in user_lower for keyword in robotics_keywords)
+
+def answer_robotics_question(user_input: str) -> str:
+    """
+    Responde perguntas sobre robótica usando o RAG
+    """
+    try:
+        # Buscar contexto relevante
+        context = get_context(user_input, k=3)
+        
+        if context and context != "Nenhum contexto relevante encontrado.":
+            # Usar LLM para formular resposta com contexto
+            response = router_llm.invoke(
+                rag_prompt_template.format(context=context, question=user_input)
+            )
+            return response.content
+        else:
+            # Se não encontrou contexto, tentar busca alternativa
+            alt_context = search_with_filter(user_input, {"tipo": "rulebook"}, k=2)
+            if alt_context and alt_context != "Nenhum contexto relevante encontrado.":
+                response = router_llm.invoke(
+                    rag_prompt_template.format(context=alt_context, question=user_input)
+                )
+                return response.content
+            else:
+                return "I don't have specific information about that in my knowledge base. Could you rephrase your question or ask about competition rules, robot tasks, arena configuration, or procedures?"
+                
+    except Exception as e:
+        return f"Sorry, I encountered an error while searching my knowledge base: {e}"
 
 # Função para determinar o tipo de input
 def determine_input_type(user_input: str) -> str:
@@ -68,6 +130,11 @@ def route_input(user_input: str) -> str:
     """
     Route the input to the appropriate agent.
     """
+    # Primeiro, verificar se é uma pergunta sobre robótica
+    if is_robotics_question(user_input):
+        return answer_robotics_question(user_input)
+    
+    # Se não é sobre robótica, determinar se é comando ou conversação
     input_type = determine_input_type(user_input)
     
     if input_type == 'command':
