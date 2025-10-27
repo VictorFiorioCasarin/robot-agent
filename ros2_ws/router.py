@@ -106,10 +106,22 @@ def determine_input_type(user_input: str) -> str:
         # Se não conseguir parsear como JSON, verifica o contexto da frase
         input_lower = user_input.lower()
         
+        # Detecta perguntas sobre localização de pessoas (comandos disfarçados)
+        person_location_patterns = [
+            'where is', 'do you know where', 'have you seen', 'where\'s',
+            'find', 'look for', 'search for', 'locate'
+        ]
+        if any(pattern in input_lower for pattern in person_location_patterns):
+            # Verifica se não é uma pergunta sobre objetos/lugares/robótica
+            if not any(word in input_lower for word in ['object', 'room', 'kitchen', 'bedroom', 'bathroom', 'rule', 'regulation']):
+                return 'command'
+        
         # Palavras que indicam uma solicitação de informação ou ajuda
-        info_words = ['help', 'explain', 'what', 'how', 'why', 'when', 'where', 'can you', 'could you', 'would you']
+        info_words = ['help', 'explain', 'what', 'how', 'why', 'when', 'can you', 'could you', 'would you']
         if any(word in input_lower for word in info_words):
-            return 'conversation'
+            # Mas se inclui "where", pode ser sobre pessoa
+            if 'where' not in input_lower:
+                return 'conversation'
             
         # Palavras que indicam um comando físico
         command_words = ['pick up', 'go to', 'bring', 'take', 'move', 'get', 'deliver']

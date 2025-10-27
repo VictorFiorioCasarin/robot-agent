@@ -23,6 +23,7 @@ class RobotPublisher(Node):
     def __init__(self):
         super().__init__('robot_publisher')
         self.room_publisher = self.create_publisher(String, 'room', 10)
+        self.person_search_publisher = self.create_publisher(String, 'person_search', 10)
         self.get_logger().info('Robot Publisher initialized')
 
     def publish_room(self, room_name):
@@ -30,6 +31,21 @@ class RobotPublisher(Node):
         msg.data = room_name
         self.room_publisher.publish(msg)
         self.get_logger().info(f'Published room: {room_name}')
+    
+    def publish_person_search(self, status, person, **kwargs):
+        """
+        Publica informações sobre a busca de pessoas no tópico person_search.
+        
+        Args:
+            status: Estado da busca ('searching', 'found', 'not_found')
+            person: Nome da pessoa sendo procurada
+            **kwargs: Argumentos adicionais (ex: current_room, location, rooms_searched, message)
+        """
+        msg = String()
+        data = {"status": status, "person": person, **kwargs}
+        msg.data = json.dumps(data)
+        self.person_search_publisher.publish(msg)
+        self.get_logger().info(f'Published person_search: {msg.data}')
 
 # Variável global para o nó ROS2
 robot_publisher_node = None
@@ -53,6 +69,7 @@ except (FileNotFoundError, KeyError) as e:
 
 known_objects = ["cup", "mug", "bowl", "dish", "spoon", "fork", "knife", "napkin", "tray", "basket", "trash bag", "book", "CD", "DVD", "BluRay", "cereal box", "milk carton", "bag", "coat", "apple", "paper", "teabag", "pen", "remote control", "chocolate egg", "refrigerator bottle", "newspaper", "umbrella"]
 known_rooms = ["bedroom", "kitchen", "living room", "dining room", "bathroom", "hall", "laundry room"]
+known_people = []  # Lista de pessoas conhecidas com formato: {"name": str, "last_location": str, "timestamp": str}
 
 @tool
 def classify_sentence_semantic(sentence: str) -> str:
@@ -303,6 +320,255 @@ def ask_user(input_str: str) -> str:
         return "__UNKNOWN_LOCATION__"
     return user_response
 
+@tool
+def update_person_location(input_str: str) -> str:
+    """
+    Updates or adds a person's location in the known_people list with timestamp.
+    Returns a success message.
+    The input should be a JSON string with 'person_name' and 'location' keys,
+    for example: '{"person_name": "Pedro", "location": "kitchen"}'.
+    """
+    try:
+        # Tenta remover as aspas simples externas se existirem
+        if input_str.startswith("'") and input_str.endswith("'"):
+            input_str = input_str[1:-1]
+        
+        parsed_input = json.loads(input_str)
+        person_name = parsed_input.get("person_name")
+        location = parsed_input.get("location")
+        
+        if not person_name or not location:
+            return "Error: 'person_name' and 'location' keys are required in input JSON for update_person_location."
+        
+        # Importar datetime para timestamp
+        from datetime import datetime
+        current_timestamp = datetime.now().isoformat()
+        
+        # Verifica se a pessoa já existe na lista
+        person_found = False
+        for person in known_people:
+            if person["name"].lower() == person_name.lower():
+                # Atualiza localização existente
+                person["last_location"] = location
+                person["timestamp"] = current_timestamp
+                person_found = True
+                print(f"[ROBOT INFO] Updated {person_name}'s location to {location}")
+                break
+        
+        # Se não encontrou, adiciona nova pessoa
+        if not person_found:
+            new_person = {
+                "name": person_name,
+                "last_location": location,
+                "timestamp": current_timestamp
+            }
+            known_people.append(new_person)
+            print(f"[ROBOT INFO] Added {person_name} to known_people at {location}")
+        
+        return f"Location updated: {person_name} is at {location}."
+        
+    except json.JSONDecodeError:
+        return f"Error: Invalid JSON input for update_person_location. Ensure it uses double quotes: {input_str}"
+    except Exception as e:
+        return f"An unexpected error occurred in update_person_location: {e}"
+
+@tool
+def find_person(input_str: str) -> str:
+    """
+    Finds a person by checking the known_people list. If the person is known, returns their last known location
+    and asks if the user wants the robot to verify. If location is provided by user, uses it directly.
+    The input should be a JSON string with 'person_name' key and optional 'message' and 'location' (or 'room') keys,
+    for example: '{"person_name": "Pedro"}' or '{"person_name": "Maria", "message": "João is looking for you", "location": "kitchen"}'.
+    """
+    try:
+        # Inicializa o nó ROS2 se necessário
+        publisher = init_ros_node()
+        
+        # Tenta remover as aspas simples externas se existirem
+        if input_str.startswith("'") and input_str.endswith("'"):
+            input_str = input_str[1:-1]
+        
+        parsed_input = json.loads(input_str)
+        person_name = parsed_input.get("person_name")
+        message = parsed_input.get("message", None)
+        # Aceita tanto 'location' quanto 'room' para maior flexibilidade
+        user_provided_location = parsed_input.get("location") or parsed_input.get("room")
+        
+        if not person_name:
+            return "Error: 'person_name' key is required in input JSON for find_person."
+        
+        print(f"[ROBOT ACTION] Looking for {person_name}...")
+        
+        # Se o usuário forneceu a localização, usa ela diretamente
+        if user_provided_location:
+            print(f"[ROBOT INFO] User provided location: {user_provided_location}")
+            # Atualiza ou adiciona a pessoa com a localização fornecida
+            update_person_location(json.dumps({"person_name": person_name, "location": user_provided_location}))
+            
+            # Navega diretamente para a localização
+            navigate_to(json.dumps({"room": user_provided_location}))
+            publisher.publish_person_search("searching", person_name, known_location=user_provided_location, action="direct_navigation")
+            
+            # Retorna à Living Room
+            print(f"[ROBOT ACTION] Returning to Living Room (home base)...")
+            navigate_to(json.dumps({"room": "living room"}))
+            
+            if message:
+                return f"Went to {user_provided_location}, found {person_name} and delivered message: '{message}'. Returned to Living Room."
+            else:
+                return f"Went to {user_provided_location}, found {person_name}. Location confirmed! Returned to Living Room."
+        
+        # Verifica se conhece a pessoa
+        person_data = None
+        for person in known_people:
+            if person["name"].lower() == person_name.lower():
+                person_data = person
+                break
+        
+        if person_data:
+            # Pessoa conhecida - retorna localização e pergunta se quer verificar
+            location = person_data["last_location"]
+            timestamp = person_data["timestamp"]
+            
+            response = f"I know {person_name}! Last seen at {location} (recorded at {timestamp})."
+            
+            if message:
+                response += f"\n\nMessage to deliver: '{message}'"
+            
+            # Publica status de consulta (sem iniciar busca física ainda)
+            publisher.publish_person_search("known", person_name, last_location=location, timestamp=timestamp)
+            
+            # Pergunta se quer que o robô vá verificar
+            verify_response = ask_user(f"{response}\n\nWould you like me to go verify and/or deliver the message? (yes/no)")
+            
+            if verify_response.strip().lower() in {"yes", "y", "sim", "s"}:
+                # Navega diretamente para localização conhecida
+                navigate_to(json.dumps({"room": location}))
+                
+                # Retorna à Living Room
+                print(f"[ROBOT ACTION] Returning to Living Room (home base)...")
+                navigate_to(json.dumps({"room": "living room"}))
+                
+                if message:
+                    return f"Went to {location}, found {person_name} and delivered message: '{message}'. Returned to Living Room."
+                else:
+                    return f"Went to {location} and verified {person_name} is there! Returned to Living Room."
+            else:
+                return f"Understood. {person_name} was last seen at {location}."
+        else:
+            # Pessoa desconhecida - inicia busca
+            print(f"[ROBOT INFO] {person_name} is unknown. Starting physical search...")
+            publisher.publish_person_search("searching", person_name, action="find")
+            
+            return f"I don't know {person_name} yet. Starting search through the house..."
+        
+    except json.JSONDecodeError:
+        return f"Error: Invalid JSON input for find_person. Ensure it uses double quotes: {input_str}"
+    except Exception as e:
+        return f"An unexpected error occurred in find_person: {e}"
+
+@tool
+def search_for_person(input_str: str) -> str:
+    """
+    Physically searches for a person by navigating through rooms. Uses random probability (75% success, 25% failure).
+    Publishes status updates to ROS2 and navigates to each room until person is found or search limit is reached.
+    The input should be a JSON string with 'person_name' key, optional 'message' and 'max_rooms' keys,
+    for example: '{"person_name": "Pedro", "message": "Maria is looking for you", "max_rooms": 5}'.
+    """
+    try:
+        # Inicializa o nó ROS2 se necessário
+        publisher = init_ros_node()
+        
+        # Tenta remover as aspas simples externas se existirem
+        if input_str.startswith("'") and input_str.endswith("'"):
+            input_str = input_str[1:-1]
+        
+        parsed_input = json.loads(input_str)
+        person_name = parsed_input.get("person_name")
+        message = parsed_input.get("message", None)
+        max_rooms = parsed_input.get("max_rooms", len(known_rooms))  # Default: buscar em todas as salas
+        
+        if not person_name:
+            return "Error: 'person_name' key is required in input JSON for search_for_person."
+        
+        import random
+        from datetime import datetime
+        
+        print(f"[ROBOT ACTION] Starting physical search for {person_name}...")
+        
+        # Publica início da busca
+        publisher.publish_person_search("searching", person_name, action="physical_search", max_rooms=max_rooms)
+        
+        rooms_searched = []
+        person_found = False
+        found_location = None
+        
+        # Itera pelas salas
+        for i, room in enumerate(known_rooms):
+            if i >= max_rooms:
+                print(f"[ROBOT INFO] Reached maximum room search limit ({max_rooms})")
+                break
+            
+            # Navega para a sala
+            print(f"[ROBOT ACTION] Searching in {room} ({i+1}/{max_rooms})...")
+            navigate_to(json.dumps({"room": room}))
+            rooms_searched.append(room)
+            
+            # Publica status atual
+            publisher.publish_person_search("searching", person_name, current_room=room, rooms_searched=len(rooms_searched))
+            
+            # Simula tempo de busca
+            time.sleep(0.5)
+            
+            # Random: 75% chance de encontrar
+            if random.random() < 0.75:
+                person_found = True
+                found_location = room
+                print(f"[ROBOT INFO] Found {person_name} in {room}!")
+                break
+        
+        # Resultado da busca
+        if person_found:
+            # Atualiza localização da pessoa
+            update_person_location(json.dumps({"person_name": person_name, "location": found_location}))
+            
+            # Publica resultado positivo
+            publisher.publish_person_search("found", person_name, location=found_location, rooms_searched=len(rooms_searched))
+            
+            # Informa a pessoa (se houver mensagem)
+            if message:
+                response = f"Found {person_name} at {found_location}! Delivered message: '{message}'. "
+                print(f"[ROBOT ACTION] Delivering message to {person_name}: '{message}'")
+            else:
+                response = f"Found {person_name} at {found_location}! "
+            
+            # Retorna à Living Room (local de origem)
+            print(f"[ROBOT ACTION] Returning to Living Room (home base)...")
+            navigate_to(json.dumps({"room": "living room"}))
+            response += "Returning to Living Room."
+            
+            return response
+        else:
+            # Não encontrou após busca
+            publisher.publish_person_search("not_found", person_name, rooms_searched=len(rooms_searched))
+            
+            # Pergunta ao usuário se sabe onde a pessoa está
+            user_help = ask_user(f"I couldn't find {person_name} after searching {len(rooms_searched)} rooms. Do you know where {person_name} might be?")
+            
+            # Retorna à Living Room antes de finalizar
+            print(f"[ROBOT ACTION] Returning to Living Room (home base)...")
+            navigate_to(json.dumps({"room": "living room"}))
+            
+            if user_help and user_help != "__UNKNOWN_LOCATION__":
+                return f"Thank you! I'll remember to look for {person_name} at {user_help} next time. Returned to Living Room."
+            else:
+                return f"I searched {len(rooms_searched)} rooms but couldn't find {person_name}. They might not be home. Returned to Living Room."
+        
+    except json.JSONDecodeError:
+        return f"Error: Invalid JSON input for search_for_person. Ensure it uses double quotes: {input_str}"
+    except Exception as e:
+        return f"An unexpected error occurred in search_for_person: {e}"
+
 # função main para testes (pode ser removida ao final)
 def main():
     """Função principal para testes do publisher"""
@@ -340,5 +606,8 @@ robot_tools = [
     ask_user, 
     rewrite_sentence,
     search_knowledge_base,
-    search_rules_and_regulations
+    search_rules_and_regulations,
+    update_person_location,
+    find_person,
+    search_for_person
 ]
