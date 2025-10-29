@@ -40,16 +40,29 @@ rag_prompt_template = PromptTemplate.from_template(rag_response_prompt)
 def is_robotics_question(user_input: str) -> bool:
     """
     Detecta se a pergunta é sobre robótica/competição/regras
+    NÃO deve detectar perguntas sobre as capacidades do próprio robô
     """
+    # Perguntas sobre capacidades do próprio robô (não são perguntas sobre robótica)
+    self_capability_patterns = [
+        'what can you do', 'what are you able to', 'can you find', 'can you pick',
+        'can you navigate', 'can you deliver', 'can you help', 'are you able to',
+        'what are your capabilities', 'what do you know how to do'
+    ]
+    
+    user_lower = user_input.lower()
+    
+    # Se é pergunta sobre capacidades do próprio robô, NÃO é pergunta de robótica
+    if any(pattern in user_lower for pattern in self_capability_patterns):
+        return False
+    
     robotics_keywords = [
-        'robocup', 'robot', 'arena', 'competition', 'task', 'rule', 'regulation',
+        'robocup', 'arena', 'competition', 'task', 'rule', 'regulation',
         'navigation', 'manipulation', 'scoring', 'configuration', 'minimal', 
         'maximum', 'specification', 'requirement', 'procedure', 'guideline',
         'safety', 'allowed', 'not allowed', 'points', 'penalty', 'bonus',
         'home', 'league', 'team', 'judge', 'referee', 'technical'
     ]
     
-    user_lower = user_input.lower()
     return any(keyword in user_lower for keyword in robotics_keywords)
 
 def answer_robotics_question(user_input: str) -> str:

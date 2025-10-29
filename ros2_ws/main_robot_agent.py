@@ -27,7 +27,9 @@ agent_executor = AgentExecutor(
     agent=agent,
     tools=robot_tools,
     verbose=True, # mostra o raciocínio do agente
-    handle_parsing_errors=True # captura erros de parsing
+    handle_parsing_errors=True, # captura erros de parsing
+    max_iterations=15,  # Limite de iterações para evitar loops infinitos
+    early_stopping_method="generate"  # Para graciosamente quando atingir o limite
 )
 
 # 5. Loop de Interação
