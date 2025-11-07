@@ -18,6 +18,9 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from rag_pipeline import get_context, search_with_filter
 
+# Import do Scenario Manager
+from scenario_manager import get_scenario_manager
+
 # Classe para o publisher ROS2
 class RobotPublisher(Node):
     def __init__(self):
@@ -58,6 +61,37 @@ def init_ros_node():
             rclpy.init()
         robot_publisher_node = RobotPublisher()
     return robot_publisher_node
+
+# Initialize scenario manager (for simulation)
+try:
+    scenario_manager = get_scenario_manager()
+    print(f"[ScenarioManager] Initialized with scenario: {scenario_manager.get_scenario_name()}")
+except Exception as e:
+    print(f"[ScenarioManager] Warning: Could not initialize scenario manager: {e}")
+    scenario_manager = None
+
+# Robot state management (singleton pattern for persistence)
+class RobotState:
+    """Manages the robot's current state (location, etc.)"""
+    _instance = None
+    _current_room = "living room"  # Default starting room
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(RobotState, cls).__new__(cls)
+        return cls._instance
+    
+    @property
+    def current_room(self):
+        return self._current_room
+    
+    @current_room.setter
+    def current_room(self, room):
+        self._current_room = room.lower() if room else "living room"
+        print(f"[RobotState] Current room updated to: '{self._current_room}'")
+
+# Global robot state instance
+robot_state = RobotState()
 
 # Carregar o prompt do classificador a partir do arquivo YAML
 try:
@@ -151,8 +185,8 @@ def rewrite_sentence(input_str: str) -> str:
 @tool
 def navigate_to(input_str: str) -> str:
     """
-    Navigates the robot to a specific room in the house (for example: kitchen, living room, bedroom) and publish to ROS2 topic.
-    Returns a success or failure message.
+    Navigates the robot to a specified room in the house.
+    Returns a confirmation message or an error.
     The input should be a JSON string with a 'room' key, for example: '{"room": "kitchen"}'.
     """
     try:
@@ -172,6 +206,9 @@ def navigate_to(input_str: str) -> str:
 
         # Publica no tópico ROS2
         publisher.publish_room(room)
+        
+        # Update robot's current location using singleton
+        robot_state.current_room = room
         
         # Simula a chamada à API de navegação do robô
         if room.lower() in known_rooms:
@@ -194,7 +231,8 @@ def navigate_to(input_str: str) -> str:
 @tool
 def pick_up_object(input_str: str) -> str:
     """
-    Attempts to pick up a specific object in the robot's field of view. The robot must be near the object.
+    Attempts to pick up a specific object in the robot's current room.
+    The robot must navigate to the room where the object is located first.
     Returns a success or failure message.
     The input should be a JSON string with an 'object_name' key, for example: '{"object_name": "box"}'.
     """
@@ -209,14 +247,43 @@ def pick_up_object(input_str: str) -> str:
             return "Error: 'object_name' key not found in input JSON for pick_up_object."
 
         print(f"[ROBOT ACTION] Attempting to pick up: {object_name}")
-        # Simula a chamada à API de manipulação do robô
-        if object_name.lower() in known_objects:
-            return f"Object '{object_name}' picked up successfully."
+        
+        # SIMULATION: Check if object exists in current room using scenario_manager
+        if scenario_manager:
+            # Debug: Print current room
+            current_room = robot_state.current_room
+            print(f"[DEBUG] Current room: '{current_room}'")
+            print(f"[DEBUG] Looking for object: '{object_name}'")
+            
+            # Check if object is in current room
+            object_in_room = scenario_manager.check_object_in_room(object_name, current_room)
+            print(f"[DEBUG] Object in room check result: {object_in_room}")
+            
+            if object_in_room:
+                # Check if robot can lift it (weight constraint)
+                weight = scenario_manager.get_object_weight(object_name, current_room)
+                max_weight = 5.0  # From house_structure.yaml
+                
+                if weight and weight > max_weight:
+                    return f"Cannot pick up '{object_name}'. It weighs {weight} kg, which exceeds my maximum lifting capacity of {max_weight} kg. I need assistance with heavy objects."
+                
+                # Successfully picked up
+                if object_name.lower() not in [obj.lower() for obj in known_objects]:
+                    known_objects.append(object_name)
+                    print(f"Object '{object_name}' added to known_objects list.")
+                
+                return f"Object '{object_name}' picked up successfully."
+            else:
+                # Object not in current room - ask user where it is
+                return f"I don't see '{object_name}' in the {current_room}. Could you tell me which room it's in?"
         else:
-            # adiciona um novo objeto a lista de objetos conhecidos
-            known_objects.append(object_name)
-            print(f"Object '{object_name}' added to known_objects list.")
-            return f"Object '{object_name}' picked up successfully."
+            # Fallback if scenario_manager is not available (should not happen in normal use)
+            if object_name.lower() in known_objects:
+                return f"Object '{object_name}' picked up successfully."
+            else:
+                known_objects.append(object_name)
+                print(f"Object '{object_name}' added to known_objects list.")
+                return f"Object '{object_name}' picked up successfully."
 
         '''
         else:
@@ -227,6 +294,66 @@ def pick_up_object(input_str: str) -> str:
         return f"Error: Invalid JSON input for pick_up_object. Ensure it uses double quotes: {input_str}"
     except Exception as e:
         return f"An unexpected error occurred in pick_up_object: {e}"
+
+@tool
+def search_for_object(input_str: str) -> str:
+    """
+    Physically searches for an object by navigating through rooms in the house.
+    Use this when the user asks to find or bring an object but doesn't specify where it is.
+    The robot will systematically search rooms until it finds the object.
+    
+    Input should be a JSON string with 'object_name' key, for example:
+    '{"object_name": "pen"}'
+    
+    Returns the location where the object was found, or a message if not found.
+    """
+    try:
+        # Parse input
+        if input_str.startswith("'") and input_str.endswith("'"):
+            input_str = input_str[1:-1]
+        
+        parsed_input = json.loads(input_str)
+        object_name = parsed_input.get("object_name")
+        
+        if not object_name:
+            return "Error: 'object_name' key is required in input JSON for search_for_object."
+        
+        print(f"[ROBOT ACTION] Starting search for '{object_name}'...")
+        
+        rooms_searched = []
+        object_found = False
+        found_location = None
+        
+        # Search through all known rooms
+        for room in known_rooms:
+            print(f"[ROBOT ACTION] Searching for '{object_name}' in {room}...")
+            
+            # Navigate to the room
+            navigate_to(json.dumps({"room": room}))
+            rooms_searched.append(room)
+            
+            # Simulate search time
+            time.sleep(0.3)
+            
+            # SIMULATION: Check if object is in this room
+            if scenario_manager and scenario_manager.check_object_in_room(object_name, room):
+                object_found = True
+                found_location = room
+                print(f"[ROBOT INFO] Found '{object_name}' in {room}!")
+                break
+        
+        # Result of the search
+        if object_found:
+            return f"Found '{object_name}' in the {found_location}! I'm currently at the {found_location}."
+        else:
+            # Object not found after searching all rooms
+            # Ask user for help
+            return f"I searched {len(rooms_searched)} rooms but couldn't find '{object_name}'. Could you tell me which room it's in, or if it might be called by a different name?"
+        
+    except json.JSONDecodeError:
+        return f"Error: Invalid JSON input for search_for_object. Ensure it uses double quotes: {input_str}"
+    except Exception as e:
+        return f"An unexpected error occurred in search_for_object: {e}"
 
 @tool
 def deliver_object(input_str: str) -> str:
@@ -456,11 +583,16 @@ def find_person(input_str: str) -> str:
             else:
                 return f"Understood. {person_name} was last seen at {location}."
         else:
-            # Pessoa desconhecida - inicia busca
+            # Pessoa desconhecida - inicia busca física usando search_for_person
             print(f"[ROBOT INFO] {person_name} is unknown. Starting physical search...")
             publisher.publish_person_search("searching", person_name, action="find")
             
-            return f"I don't know {person_name} yet. Starting search through the house..."
+            # Chama search_for_person para fazer a busca física
+            search_input = {"person_name": person_name}
+            if message:
+                search_input["message"] = message
+            
+            return search_for_person(json.dumps(search_input))
         
     except json.JSONDecodeError:
         return f"Error: Invalid JSON input for find_person. Ensure it uses double quotes: {input_str}"
@@ -491,7 +623,6 @@ def search_for_person(input_str: str) -> str:
         if not person_name:
             return "Error: 'person_name' key is required in input JSON for search_for_person."
         
-        import random
         from datetime import datetime
         
         print(f"[ROBOT ACTION] Starting physical search for {person_name}...")
@@ -520,8 +651,8 @@ def search_for_person(input_str: str) -> str:
             # Simula tempo de busca
             time.sleep(0.5)
             
-            # Random: 75% chance de encontrar
-            if random.random() < 0.75:
+            # SIMULAÇÃO: Verifica no cenário se a pessoa está nesta sala
+            if scenario_manager and scenario_manager.check_person_in_room(person_name, room):
                 person_found = True
                 found_location = room
                 print(f"[ROBOT INFO] Found {person_name} in {room}!")
@@ -601,7 +732,8 @@ if __name__ == '__main__':
 robot_tools = [
     classify_sentence_semantic, 
     navigate_to, 
-    pick_up_object, 
+    pick_up_object,
+    search_for_object,
     deliver_object, 
     ask_user, 
     rewrite_sentence,
