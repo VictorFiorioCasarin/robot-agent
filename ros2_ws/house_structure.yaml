@@ -67,7 +67,7 @@ house:
     
     hall:
       - coat rack
-      - umbrella stand
+      - umbrella
     
     garage:
       - shopping bag
@@ -82,5 +82,5 @@ house:
 
   # Physical constraints (for future Deus Ex Machina feature)
   constraints:
-    max_lifting_weight_kg: 5.0  # Maximum weight the robot can safely lift
+    max_lifting_weight_kg: 3.0  # Maximum weight the robot can safely lift
     restricted_areas: []  # Areas the robot cannot access (empty for now)

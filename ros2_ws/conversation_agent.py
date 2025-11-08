@@ -6,7 +6,8 @@ import yaml
 from rag_pipeline import get_context, search_with_filter
 
 # Configurar a LLM para a conversação
-conversation_llm = ChatOllama(model="gemma3:4b", temperature=0.7)
+#conversation_llm = ChatOllama(model="gemma3:4b", temperature=0.7)
+conversation_llm = ChatOllama(model="deepseek-r1:8b", temperature=0.7)
 
 # Carregar o prompt da conversação
 with open('Prompts/conversation_prompt.yaml', 'r') as file:

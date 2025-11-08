@@ -262,10 +262,14 @@ def pick_up_object(input_str: str) -> str:
             if object_in_room:
                 # Check if robot can lift it (weight constraint)
                 weight = scenario_manager.get_object_weight(object_name, current_room)
-                max_weight = 5.0  # From house_structure.yaml
+                max_weight = 3.0  # Robot's maximum lifting capacity
+                can_lift = weight and weight <= max_weight
                 
-                if weight and weight > max_weight:
-                    return f"Cannot pick up '{object_name}'. It weighs {weight} kg, which exceeds my maximum lifting capacity of {max_weight} kg. I need assistance with heavy objects."
+                print(f"[DEBUG] Object weight: {weight} kg, Can lift: {can_lift}")
+                
+                if not can_lift:
+                    # Object is too heavy - treat like "cannot pick up"
+                    return f"I cannot carry the {object_name} from the {current_room}. It is too heavy for me. I can only carry objects up to {max_weight} kg maximum."
                 
                 # Successfully picked up
                 if object_name.lower() not in [obj.lower() for obj in known_objects]:
@@ -344,6 +348,15 @@ def search_for_object(input_str: str) -> str:
         
         # Result of the search
         if object_found:
+            # Check if robot can lift it
+            if scenario_manager:
+                weight = scenario_manager.get_object_weight(object_name, found_location)
+                max_weight = 3.0
+                
+                if weight and weight > max_weight:
+                    # Object is too heavy - task cannot be completed
+                    return f"Task failed: I found the {object_name} in the {found_location}, but I cannot carry it. It is too heavy for me (I can only carry objects up to {max_weight} kg maximum). Task completed unsuccessfully."
+            
             return f"Found '{object_name}' in the {found_location}! I'm currently at the {found_location}."
         else:
             # Object not found after searching all rooms

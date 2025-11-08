@@ -185,14 +185,14 @@ class ScenarioManager:
         
         return None
     
-    def can_lift_object(self, object_type: str, room: str, max_weight: float = 5.0) -> bool:
+    def can_lift_object(self, object_type: str, room: str, max_weight: float = 3.0) -> bool:
         """
         Check if the robot can lift an object based on weight constraints.
         
         Args:
             object_type: Type of object
             room: Room where the object is located
-            max_weight: Maximum weight the robot can lift (default 5.0 kg)
+            max_weight: Maximum weight the robot can lift (default 3.0 kg)
             
         Returns:
             True if object can be lifted, False otherwise

@@ -68,7 +68,7 @@
     {"type": "sponge", "location": "laundry room", "weight_kg": 0.05},
 
     {"type": "coat rack", "location": "hall", "weight_kg": 3.5},
-    {"type": "umbrella stand", "location": "hall", "weight_kg": 2.0},
+    {"type": "umbrella", "location": "hall", "weight_kg": 2.0},
     {"type": "wall hook", "location": "hall", "weight_kg": 0.3},
 
     {"type": "metal can", "location": "garage", "weight_kg": 1.3},
