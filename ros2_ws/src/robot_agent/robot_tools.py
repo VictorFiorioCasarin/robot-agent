@@ -27,6 +27,7 @@ class RobotPublisher(Node):
         super().__init__('robot_publisher')
         self.room_publisher = self.create_publisher(String, 'room', 10)
         self.person_search_publisher = self.create_publisher(String, 'person_search', 10)
+        self.object_publisher = self.create_publisher(String, 'object', 10)
         self.get_logger().info('Robot Publisher initialized')
 
     def publish_room(self, room_name):
@@ -49,6 +50,18 @@ class RobotPublisher(Node):
         msg.data = json.dumps(data)
         self.person_search_publisher.publish(msg)
         self.get_logger().info(f'Published person_search: {msg.data}')
+    
+    def publish_object(self, object_name):
+        """
+        Publica o nome do objeto encontrado no tópico object.
+        
+        Args:
+            object_name: Nome do objeto encontrado
+        """
+        msg = String()
+        msg.data = object_name
+        self.object_publisher.publish(msg)
+        self.get_logger().info(f'Published object: {object_name}')
 
 # Variável global para o nó ROS2
 robot_publisher_node = None
@@ -92,6 +105,15 @@ class RobotState:
 
 # Global robot state instance
 robot_state = RobotState()
+
+def normalize_room_name(room: str) -> str:
+    """
+    Normaliza nomes de sala para garantir que 'dining room' nunca seja interpretado como 'dining' sozinho.
+    """
+    room = room.lower().strip()
+    if room == "dining":
+        return "dining room"
+    return room
 
 # Carregar o prompt do classificador a partir do arquivo YAML
 try:
@@ -198,7 +220,7 @@ def navigate_to(input_str: str) -> str:
             input_str = input_str[1:-1]
         
         parsed_input = json.loads(input_str)
-        room = parsed_input.get("room")
+        room = normalize_room_name(parsed_input.get("room"))
         if not room:
             return "Error: 'room' key not found in input JSON for navigate_to."
         
@@ -260,6 +282,12 @@ def pick_up_object(input_str: str) -> str:
             print(f"[DEBUG] Object in room check result: {object_in_room}")
             
             if object_in_room:
+                # Inicializa o nó ROS2 se necessário
+                publisher = init_ros_node()
+                
+                # Publica o objeto encontrado no tópico 'object'
+                publisher.publish_object(object_name)
+                
                 # Check if robot can lift it (weight constraint)
                 weight = scenario_manager.get_object_weight(object_name, current_room)
                 max_weight = 3.0  # Robot's maximum lifting capacity
@@ -268,7 +296,9 @@ def pick_up_object(input_str: str) -> str:
                 print(f"[DEBUG] Object weight: {weight} kg, Can lift: {can_lift}")
                 
                 if not can_lift:
-                    # Object is too heavy - treat like "cannot pick up"
+                    # Object is too heavy - return to Living Room before reporting failure
+                    print(f"[ROBOT ACTION] Object too heavy. Returning to Living Room (home base)...")
+                    navigate_to(json.dumps({"room": "living room"}))
                     return f"I cannot carry the {object_name} from the {current_room}. It is too heavy for me. I can only carry objects up to {max_weight} kg maximum."
                 
                 # Successfully picked up
@@ -278,7 +308,9 @@ def pick_up_object(input_str: str) -> str:
                 
                 return f"Object '{object_name}' picked up successfully."
             else:
-                # Object not in current room - ask user where it is
+                # Object not in current room - return to Living Room before asking for help
+                print(f"[ROBOT ACTION] Object not found in current room. Returning to Living Room (home base)...")
+                navigate_to(json.dumps({"room": "living room"}))
                 return f"I don't see '{object_name}' in the {current_room}. Could you tell me which room it's in?"
         else:
             # Fallback if scenario_manager is not available (should not happen in normal use)
@@ -344,6 +376,11 @@ def search_for_object(input_str: str) -> str:
                 object_found = True
                 found_location = room
                 print(f"[ROBOT INFO] Found '{object_name}' in {room}!")
+                
+                # Publica o objeto encontrado no tópico 'object'
+                publisher = init_ros_node()
+                publisher.publish_object(object_name)
+                
                 break
         
         # Result of the search
@@ -354,13 +391,16 @@ def search_for_object(input_str: str) -> str:
                 max_weight = 3.0
                 
                 if weight and weight > max_weight:
-                    # Object is too heavy - task cannot be completed
-                    return f"Task failed: I found the {object_name} in the {found_location}, but I cannot carry it. It is too heavy for me (I can only carry objects up to {max_weight} kg maximum). Task completed unsuccessfully."
+                    # Object is too heavy - return to Living Room before reporting failure
+                    print(f"[ROBOT ACTION] Object too heavy. Returning to Living Room (home base)...")
+                    navigate_to(json.dumps({"room": "living room"}))
+                    return f"I found the {object_name} in the {found_location}, but I cannot carry it. It is too heavy for me. I can only carry objects up to {max_weight} kg maximum."
             
             return f"Found '{object_name}' in the {found_location}! I'm currently at the {found_location}."
         else:
-            # Object not found after searching all rooms
-            # Ask user for help
+            # Object not found after searching all rooms - return to Living Room
+            print(f"[ROBOT ACTION] Object not found. Returning to Living Room (home base)...")
+            navigate_to(json.dumps({"room": "living room"}))
             return f"I searched {len(rooms_searched)} rooms but couldn't find '{object_name}'. Could you tell me which room it's in, or if it might be called by a different name?"
         
     except json.JSONDecodeError:

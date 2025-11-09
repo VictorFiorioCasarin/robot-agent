@@ -5,9 +5,19 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from src.robot_agent.robot_tools import robot_tools
 import json
 import yaml
+import re
+
+# Função para limpar output do LLM
+def clean_llm_output(text: str) -> str:
+    """Remove caracteres unicode inválidos e texto em outros idiomas"""
+    # Remove caracteres unicode não-ASCII exceto pontuação comum
+    cleaned = re.sub(r'[^\x00-\x7F]+', '', text)
+    # Remove tags <unused...>
+    cleaned = re.sub(r'<unused\d+>', '', cleaned)
+    return cleaned.strip()
 
 # 1. Configurar a LLM Principal (Gemma3B via Ollama)
-main_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
+main_llm = ChatOllama(model="gemma3:4b", temperature=0.1)
 
 # 2. Carregar o Prompt do Agente a partir do arquivo YAML
 with open('Prompts/main_prompt.yaml', 'r') as file:
@@ -29,7 +39,7 @@ agent_executor = AgentExecutor(
     verbose=True, # mostra o raciocínio do agente
     handle_parsing_errors=True, # captura erros de parsing
     max_iterations=15,  # Limite de iterações para evitar loops infinitos
-    early_stopping_method="generate"  # Para graciosamente quando atingir o limite
+    return_intermediate_steps=True  # Útil para debugging
 )
 
 # 5. Loop de Interação
@@ -44,7 +54,12 @@ if __name__ == "__main__":
         try:
             # Invocar o agente com a entrada do usuário
             response = agent_executor.invoke({"input": user_input})
-            print(f"Robot: {response['output']}")
+            # Limpar o output antes de exibir
+            cleaned_output = clean_llm_output(response['output'])
+            print(f"Robot: {cleaned_output}")
         except Exception as e:
-            print(f"Robot: An error occurred while processing your request: {e}")
+            error_message = str(e)
+            # Limpar a mensagem de erro também
+            cleaned_error = clean_llm_output(error_message)
+            print(f"Robot: An error occurred while processing your request: {cleaned_error}")
             print("Please try again or rephrase your sentence.")

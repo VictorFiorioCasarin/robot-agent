@@ -5,7 +5,7 @@ import json
 import re
 
 # Importar os agentes existentes e novos
-from main_robot_agent import agent_executor as command_agent
+from main_robot_agent import agent_executor as command_agent, clean_llm_output
 from conversation_agent import process_conversation
 
 # Importar RAG pipeline diretamente
@@ -163,9 +163,21 @@ def route_input(user_input: str) -> str:
     input_type = determine_input_type(user_input)
     
     if input_type == 'command':
-        # Usar o agente de comandos existente
-        response = command_agent.invoke({"input": user_input})
-        return response['output']
+        try:
+            # Usar o agente de comandos existente
+            response = command_agent.invoke({"input": user_input})
+            # Limpar o output antes de retornar
+            return clean_llm_output(response['output'])
+        except Exception as e:
+            # Se falhar, tentar novamente com input reformulado
+            error_str = str(e)
+            if "early_stopping_method" in error_str:
+                print("[DEBUG] Detected early_stopping_method error, attempting recovery...")
+                # Informar o usuário sobre o problema técnico
+                return "I apologize, but I encountered a technical issue. Could you please rephrase your command?"
+            # Limpar a mensagem de erro
+            cleaned_error = clean_llm_output(error_str)
+            raise Exception(cleaned_error)
     else:
         # Usar o novo agente de conversação
         response = process_conversation(user_input)
@@ -175,8 +187,15 @@ def route_input(user_input: str) -> str:
             # Verifica se é realmente um comando físico ou uma metáfora/conversação
             if any(word in user_input.lower() for word in ['help me', 'explain', 'understand', 'learn', 'teach']):
                 return "I apologize, but I am a household assistant robot. I can help you with physical tasks like picking up objects, navigating rooms, and delivering items. I cannot help with academic subjects or explanations."
-            command_response = command_agent.invoke({"input": user_input})
-            return command_response['output']
+            try:
+                command_response = command_agent.invoke({"input": user_input})
+                return clean_llm_output(command_response['output'])
+            except Exception as e:
+                error_str = str(e)
+                if "early_stopping_method" in error_str:
+                    return "I apologize, but I encountered a technical issue. Could you please rephrase your command?"
+                cleaned_error = clean_llm_output(error_str)
+                raise Exception(cleaned_error)
             
         return response
 
@@ -191,7 +210,11 @@ if __name__ == "__main__":
         
         try:
             response = route_input(user_input)
-            print(f"Robot: {response}")
+            # Limpar o output final antes de exibir
+            cleaned_response = clean_llm_output(response)
+            print(f"Robot: {cleaned_response}")
         except Exception as e:
-            print(f"Robot: An error occurred while processing your request: {e}")
+            error_message = str(e)
+            cleaned_error = clean_llm_output(error_message)
+            print(f"Robot: An error occurred while processing your request: {cleaned_error}")
             print("Please try again or rephrase your sentence.")
