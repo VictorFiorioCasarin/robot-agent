@@ -8,7 +8,7 @@ prompt: |
   - object: manipulable items or entities (for example: cup, box, newspaper)
   - person: names of people or references to individuals (for example: Pedro, Maria, João, someone, person)
   - location: specific places or furniture inside rooms (for example: table, closet, shelf)
-  - room: general regions or rooms in the house (for example: bedroom, kitchen, living room, dining room, bathroom, hall, laundry room)
+  - room: general regions or rooms in the house (for example: bedroom, kitchen, living room, dining room, bathroom, hall, laundry room, garage)
   - direction: spatial cues (for example: near, next to, on top of, behind)
   - other: anything else (for example: prepositions, articles, connectors)
 

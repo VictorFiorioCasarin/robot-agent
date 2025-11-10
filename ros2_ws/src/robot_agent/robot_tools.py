@@ -127,7 +127,7 @@ except (FileNotFoundError, KeyError) as e:
     CLASSIFIER_PROMPT = "Classify the following sentence into semantic categories (action, object, location, room, direction, other). Return as Python list of tuples."
 
 known_objects = ["cup", "mug", "bowl", "dish", "spoon", "fork", "knife", "napkin", "tray", "basket", "trash bag", "book", "CD", "DVD", "BluRay", "cereal box", "milk carton", "bag", "coat", "apple", "paper", "teabag", "pen", "remote control", "chocolate egg", "refrigerator bottle", "newspaper", "umbrella"]
-known_rooms = ["bedroom", "kitchen", "living room", "dining room", "bathroom", "hall", "laundry room"]
+known_rooms = ["bedroom", "kitchen", "living room", "dining room", "bathroom", "hall", "laundry room", "garage"]
 known_people = []  # Lista de pessoas conhecidas com formato: {"name": str, "last_location": str, "timestamp": str}
 
 @tool
