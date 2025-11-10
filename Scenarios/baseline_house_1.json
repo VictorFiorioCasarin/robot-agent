@@ -55,6 +55,7 @@
     {"type": "notebook", "location": "bedroom", "weight_kg": 0.3},
     {"type": "pen", "location": "bedroom", "weight_kg": 0.02},
     {"type": "key", "location": "bedroom", "weight_kg": 0.03},
+    {"type": "keys", "location": "bedroom", "weight_kg": 0.03},
     {"type": "t-shirt", "location": "bedroom", "weight_kg": 0.2},
     {"type": "sock", "location": "bedroom", "weight_kg": 0.03},
     {"type": "light bulb", "location": "bedroom", "weight_kg": 0.05},

@@ -28,20 +28,6 @@ with open('Prompts/main_prompt.yaml', 'r') as file:
 # Ele DEVE explicar claramente as ferramentas e o processo de pensamento esperado.
 agent_prompt = PromptTemplate.from_template(agent_prompt)
 
-# 3. Criar o Agente
-# create_react_agent usa o padrão ReAct para raciocínio.
-agent = create_react_agent(main_llm, robot_tools, agent_prompt)
-
-# 4. Criar o Executor do Agente
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=robot_tools,
-    verbose=True, # mostra o raciocínio do agente
-    handle_parsing_errors=True, # captura erros de parsing
-    max_iterations=15,  # Limite de iterações para evitar loops infinitos
-    return_intermediate_steps=True  # Útil para debugging
-)
-
 # 5. Loop de Interação
 if __name__ == "__main__":
     print("Robot: Hello! How can I help you today? (Type 'exit' to quit)")
@@ -50,10 +36,22 @@ if __name__ == "__main__":
         if user_input.lower() == 'exit':
             print("Robot: Goodbye!")
             break
-        
+      
         try:
-            # Invocar o agente com a entrada do usuário
-            response = agent_executor.invoke({"input": user_input})
+            # IMPORTANTE: Criar nova instância do executor para cada comando
+            # Isso limpa o agent_scratchpad e evita contaminação de contexto
+            fresh_agent = create_react_agent(main_llm, robot_tools, agent_prompt)
+            fresh_executor = AgentExecutor(
+                agent=fresh_agent,
+                tools=robot_tools,
+                verbose=False,
+                handle_parsing_errors=True,
+                max_iterations=15,
+                return_intermediate_steps=True
+            )
+            
+            # Invocar com executor limpo
+            response = fresh_executor.invoke({"input": user_input})
             # Limpar o output antes de exibir
             cleaned_output = clean_llm_output(response['output'])
             print(f"Robot: {cleaned_output}")

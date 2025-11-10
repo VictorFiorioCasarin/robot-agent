@@ -113,6 +113,9 @@ def normalize_room_name(room: str) -> str:
     room = room.lower().strip()
     if room == "dining":
         return "dining room"
+
+    if room == "hallway":
+        return "hall"
     return room
 
 # Carregar o prompt do classificador a partir do arquivo YAML
@@ -336,6 +339,7 @@ def search_for_object(input_str: str) -> str:
     """
     Physically searches for an object by navigating through rooms in the house.
     Use this when the user asks to find or bring an object but doesn't specify where it is.
+    Navegate trough all the rooms in the house looking for the object, verify if the object is in the rooms, one by one.
     The robot will systematically search rooms until it finds the object.
     
     Input should be a JSON string with 'object_name' key, for example:
@@ -407,6 +411,67 @@ def search_for_object(input_str: str) -> str:
         return f"Error: Invalid JSON input for search_for_object. Ensure it uses double quotes: {input_str}"
     except Exception as e:
         return f"An unexpected error occurred in search_for_object: {e}"
+
+@tool
+def find_object(input_str: str) -> str:
+    """
+    Finds an object by asking the user where it is. If the user doesn't know, automatically starts a physical search.
+    Similar to find_person but for objects.
+    The input should be a JSON string with 'object_name' key, for example: '{"object_name": "glass"}'.
+    """
+    try:
+        # Parse input
+        if input_str.startswith("'") and input_str.endswith("'"):
+            input_str = input_str[1:-1]
+        
+        parsed_input = json.loads(input_str)
+        object_name = parsed_input.get("object_name")
+        
+        if not object_name:
+            return "Error: 'object_name' key is required in input JSON for find_object."
+        
+        print(f"[ROBOT ACTION] Looking for {object_name}...")
+        
+        # Ask the user where the object is
+        user_response = ask_user(f"Where is the {object_name}?")
+        
+        # If user doesn't know, start automatic search
+        if user_response == "__UNKNOWN_LOCATION__":
+            print(f"[ROBOT INFO] User doesn't know where {object_name} is. Starting physical search...")
+            return search_for_object(json.dumps({"object_name": object_name}))
+        
+        # Extract room name from user response (handles "it's in the kitchen", "kitchen", "in the bedroom", etc.)
+        location_raw = user_response.strip().lower()
+        
+        # Remove common phrases to extract just the room name
+        phrases_to_remove = [
+            "it's in the ", "its in the ", "it is in the ",
+            "in the ", "at the ", "on the ",
+            "it's in ", "its in ", "it is in ",
+            "in ", "at ", "on "
+        ]
+        
+        for phrase in phrases_to_remove:
+            if location_raw.startswith(phrase):
+                location_raw = location_raw[len(phrase):]
+                break
+        
+        # Normalize the room name
+        location = normalize_room_name(location_raw.strip())
+        print(f"[ROBOT INFO] User said {object_name} is at: {location}")
+        
+        # Navigate to the location
+        navigate_to(json.dumps({"room": location}))
+        
+        # Try to pick up the object
+        pick_result = pick_up_object(json.dumps({"object_name": object_name}))
+        
+        return pick_result
+        
+    except json.JSONDecodeError:
+        return f"Error: Invalid JSON input for find_object. Ensure it uses double quotes: {input_str}"
+    except Exception as e:
+        return f"An unexpected error occurred in find_object: {e}"
 
 @tool
 def deliver_object(input_str: str) -> str:
@@ -494,10 +559,27 @@ def ask_user(input_str: str) -> str:
     """
     Displays a question to the user and waits for an answer.
     If the user says 'I don't know', returns a specific keyword to trigger fallback behavior.
+    
+    IMPORTANT: If this tool returns "__UNKNOWN_LOCATION__", it means the user does not know
+    the location. You MUST then use the search_for_object tool to search all rooms.
     """
     user_response = input(f"\n[Robot]: {input_str}\n[You]: ")
-    if user_response.strip().lower() in {"i don't know", "dont know", "no idea", "not sure", "não sei"}:
+    user_lower = user_response.strip().lower()
+    
+    # Expanded list of "I don't know" variations
+    unknown_responses = {
+        "i don't know", "dont know", "don't know", "i dont know",
+        "no idea", "not sure", "não sei", "dunno", "idk",
+        "i have no idea", "no clue", "not a clue"
+    }
+    
+    # Check if response contains "don't know", "find it", "search", etc.
+    if any(phrase in user_lower for phrase in unknown_responses):
         return "__UNKNOWN_LOCATION__"
+    
+    if any(word in user_lower for word in ["find", "search", "look"]):
+        return "__UNKNOWN_LOCATION__"
+    
     return user_response
 
 @tool
@@ -610,7 +692,15 @@ def find_person(input_str: str) -> str:
             location = person_data["last_location"]
             timestamp = person_data["timestamp"]
             
-            response = f"I know {person_name}! Last seen at {location} (recorded at {timestamp})."
+            # Formatar timestamp para mostrar apenas hora e minuto
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(timestamp)
+                formatted_time = dt.strftime("%H:%M")
+            except:
+                formatted_time = timestamp  # Fallback se houver erro no parsing
+            
+            response = f"I know {person_name}! Last seen at {location} at {formatted_time}."
             
             if message:
                 response += f"\n\nMessage to deliver: '{message}'"
@@ -619,20 +709,31 @@ def find_person(input_str: str) -> str:
             publisher.publish_person_search("known", person_name, last_location=location, timestamp=timestamp)
             
             # Pergunta se quer que o robô vá verificar
-            verify_response = ask_user(f"{response}\n\nWould you like me to go verify and/or deliver the message? (yes/no)")
-            
+            verify_response = ask_user(f"{response}\n\nWould you like me to go verify? (yes/no)")
+
             if verify_response.strip().lower() in {"yes", "y", "sim", "s"}:
-                # Navega diretamente para localização conhecida
-                navigate_to(json.dumps({"room": location}))
+                # Remove o registro antigo da pessoa
+                print(f"[ROBOT INFO] Removing old record of {person_name} from known_people")
+                known_people.remove(person_data)
                 
-                # Retorna à Living Room
-                print(f"[ROBOT ACTION] Returning to Living Room (home base)...")
-                navigate_to(json.dumps({"room": "living room"}))
-                
+                # Reescreve a sentença original com a informação que temos
+                original_command = f"Find {person_name}"
                 if message:
-                    return f"Went to {location}, found {person_name} and delivered message: '{message}'. Returned to Living Room."
-                else:
-                    return f"Went to {location} and verified {person_name} is there! Returned to Living Room."
+                    original_command += f", message: {message}"
+                
+                #print(f"[ROBOT INFO] Rewriting sentence: {original_command}")
+                #inserir room na sentença
+                rewrite_command = f"{original_command}, in the {location}"
+                rewrite_sentence(rewrite_command)
+                print(f"[ROBOT INFO] Rewrited sentence: {rewrite_command}")
+                
+                # Chama find_person novamente (agora a pessoa será desconhecida e iniciará busca física)
+                print(f"[ROBOT INFO] Calling find_person again to perform physical search")
+                search_input = {"person_name": person_name, "location": location}
+                if message:
+                    search_input["message"] = message
+                
+                return find_person(json.dumps(search_input))
             else:
                 return f"Understood. {person_name} was last seen at {location}."
         else:
@@ -787,6 +888,7 @@ robot_tools = [
     navigate_to, 
     pick_up_object,
     search_for_object,
+    find_object,
     deliver_object, 
     ask_user, 
     rewrite_sentence,

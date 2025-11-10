@@ -1,18 +1,29 @@
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain.agents import AgentExecutor, create_react_agent
 import yaml
 import json
 import re
 
-# Importar os agentes existentes e novos
-from main_robot_agent import agent_executor as command_agent, clean_llm_output
+# Importar ferramentas e funções necessárias
+from main_robot_agent import clean_llm_output
 from conversation_agent import process_conversation
+from src.robot_agent.robot_tools import robot_tools
 
 # Importar RAG pipeline diretamente
 from rag_pipeline import get_context, search_with_filter
 
 # Configurar a LLM para o router
 router_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
+
+# Configurar a LLM para comandos (igual ao main_robot_agent)
+command_llm = ChatOllama(model="gemma3:4b", temperature=0.1)
+
+# Carregar o prompt do agente de comando
+with open('Prompts/main_prompt.yaml', 'r') as file:
+    command_agent_prompt_text = yaml.safe_load(file)['prompt']
+
+command_agent_prompt = PromptTemplate.from_template(command_agent_prompt_text)
 
 # Carregar o prompt do router
 with open('Prompts/router_prompt.yaml', 'r') as file:
@@ -164,8 +175,19 @@ def route_input(user_input: str) -> str:
     
     if input_type == 'command':
         try:
-            # Usar o agente de comandos existente
-            response = command_agent.invoke({"input": user_input})
+            # Criar fresh agent para evitar contaminação de contexto
+            fresh_agent = create_react_agent(command_llm, robot_tools, command_agent_prompt)
+            fresh_executor = AgentExecutor(
+                agent=fresh_agent,
+                tools=robot_tools,
+                verbose=False,
+                handle_parsing_errors=True,
+                max_iterations=15,
+                return_intermediate_steps=True
+            )
+            
+            # Usar o agente de comandos com executor limpo
+            response = fresh_executor.invoke({"input": user_input})
             # Limpar o output antes de retornar
             return clean_llm_output(response['output'])
         except Exception as e:
@@ -188,7 +210,18 @@ def route_input(user_input: str) -> str:
             if any(word in user_input.lower() for word in ['help me', 'explain', 'understand', 'learn', 'teach']):
                 return "I apologize, but I am a household assistant robot. I can help you with physical tasks like picking up objects, navigating rooms, and delivering items. I cannot help with academic subjects or explanations."
             try:
-                command_response = command_agent.invoke({"input": user_input})
+                # Criar fresh agent para evitar contaminação de contexto
+                fresh_agent = create_react_agent(command_llm, robot_tools, command_agent_prompt)
+                fresh_executor = AgentExecutor(
+                    agent=fresh_agent,
+                    tools=robot_tools,
+                    verbose=False,
+                    handle_parsing_errors=True,
+                    max_iterations=15,
+                    return_intermediate_steps=True
+                )
+                
+                command_response = fresh_executor.invoke({"input": user_input})
                 return clean_llm_output(command_response['output'])
             except Exception as e:
                 error_str = str(e)
