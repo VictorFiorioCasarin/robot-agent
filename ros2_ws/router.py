@@ -4,6 +4,7 @@ from langchain.agents import AgentExecutor, create_react_agent
 import yaml
 import json
 import re
+import os
 
 # Importar ferramentas e funções necessárias
 from main_robot_agent import clean_llm_output
@@ -12,6 +13,42 @@ from src.robot_agent.robot_tools import robot_tools
 
 # Importar RAG pipeline diretamente
 from rag_pipeline import get_context, search_with_filter
+
+# Importar TTS e STT
+import pyttsx3
+from stt_module import STTModule
+
+# Inicializar TTS (modo offline usando pyttsx3)
+try:
+    tts_engine = pyttsx3.init()
+    # Configurar propriedades de voz
+    tts_engine.setProperty('rate', 150)    # Velocidade da fala
+    tts_engine.setProperty('volume', 0.9)  # Volume (0.0 a 1.0)
+    tts_enabled = True
+    print("TTS initialized (pyttsx3)")
+except Exception as e:
+    print(f"Warning: TTS initialization failed: {e}")
+    print("Continuing without TTS...")
+    tts_enabled = False
+
+# Inicializar STT (modo offline usando Whisper)
+stt = STTModule(model_name="base", language="en")
+if not stt.enabled:
+    print("Warning: STT not available. Voice input disabled.")
+
+def speak(text: str):
+    """
+    Converte texto em fala usando pyttsx3 (apenas modo offline).
+    Só é chamado para respostas finais do robô, não para debug ou logs ROS2.
+    """
+    if not tts_enabled:
+        return
+    
+    try:
+        tts_engine.say(text)
+        tts_engine.runAndWait()
+    except Exception as e:
+        print(f"[TTS Error] Could not synthesize speech: {e}")
 
 # Configurar a LLM para o router
 router_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
@@ -234,20 +271,49 @@ def route_input(user_input: str) -> str:
 
 # Loop principal de interação
 if __name__ == "__main__":
-    print("Robot: Hello! I'm your household assistant robot. How can I help you today? (Type 'exit' to quit)")
+    greeting = "Hello! I'm your household assistant robot. How can I help you today?"
+    print(f"Robot: {greeting}")
+    if stt.enabled:
+        print("You can type your command or press 'v' to use voice input. Type 'exit' to quit.")
+    else:
+        print("Type 'exit' to quit.")
+    speak(greeting)
+    
     while True:
-        user_input = input("You: ")
+        # Opção de entrada
+        if stt.enabled:
+            user_input = input("\nYou (type or 'v' for voice): ").strip()
+        else:
+            user_input = input("\nYou: ").strip()
+        
         if user_input.lower() == 'exit':
-            print("Robot: Goodbye!")
+            goodbye = "Goodbye!"
+            print(f"Robot: {goodbye}")
+            speak(goodbye)
             break
         
-        try:
-            response = route_input(user_input)
-            # Limpar o output final antes de exibir
-            cleaned_response = clean_llm_output(response)
-            print(f"Robot: {cleaned_response}")
-        except Exception as e:
-            error_message = str(e)
-            cleaned_error = clean_llm_output(error_message)
-            print(f"Robot: An error occurred while processing your request: {cleaned_error}")
-            print("Please try again or rephrase your sentence.")
+        # Se o usuário escolheu voz
+        if user_input.lower() == 'v' and stt.enabled:
+            user_input = stt.listen_and_transcribe(duration=5)
+            
+            if not user_input:
+                error_msg = "Sorry, I couldn't understand what you said. Please try again."
+                print(f"Robot: {error_msg}")
+                speak(error_msg)
+                continue
+        
+        # Processar entrada
+        if user_input:
+            try:
+                response = route_input(user_input)
+                # Limpar o output final antes de exibir
+                cleaned_response = clean_llm_output(response)
+                print(f"Robot: {cleaned_response}")
+                speak(cleaned_response)
+            except Exception as e:
+                error_message = str(e)
+                cleaned_error = clean_llm_output(error_message)
+                print(f"Robot: An error occurred while processing your request: {cleaned_error}")
+                speak(f"An error occurred while processing your request: {cleaned_error}")
+                print("Please try again or rephrase your sentence.")
+
