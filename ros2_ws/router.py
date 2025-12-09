@@ -5,6 +5,7 @@ import yaml
 import json
 import re
 import os
+import time
 
 # Importar ferramentas e funções necessárias
 from main_robot_agent import clean_llm_output
@@ -305,10 +306,18 @@ if __name__ == "__main__":
         # Processar entrada
         if user_input:
             try:
+                # Iniciar timer
+                start_time = time.time()
+                
                 response = route_input(user_input)
+                
+                # Calcular tempo de resposta
+                response_time = time.time() - start_time
+                
                 # Limpar o output final antes de exibir
                 cleaned_response = clean_llm_output(response)
                 print(f"Robot: {cleaned_response}")
+                print(f"[Response time: {response_time:.2f}s]")
                 speak(cleaned_response)
             except Exception as e:
                 error_message = str(e)
